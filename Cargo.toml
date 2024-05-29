@@ -1,0 +1,14 @@
+[package]
+name = "dp-flights-backend"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+actix-web = "4.5.1"
+dotenv = "0.15.0"
+serde = { version = "1.0.199", features = ["derive"] }
+sqlx = { version = "0.7.4", features = [ "runtime-tokio", "postgres", "rust_decimal", "chrono" ] }
+chrono = { version = "0.4.38", features = ["serde"] }
+futures = "0.3.30"
