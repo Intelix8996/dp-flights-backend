@@ -3,11 +3,11 @@ mod app_state;
 mod handlers;
 mod neighbours;
 mod prices;
+mod seats;
 
 use std::process::exit;
 use std::time::Instant;
 use actix_web::{web, App, HttpServer, Responder, HttpResponse};
-use actix_web::web::route;
 use dotenv::dotenv;
 use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
@@ -16,6 +16,7 @@ use crate::config::Config;
 use crate::handlers::{inbound_schedule, list_airports_within_city, list_all_airports, list_cities, list_routes, outbound_schedule};
 use crate::neighbours::compute_neighbours;
 use crate::prices::compute_prices;
+use crate::seats::compute_seats;
 
 #[derive(Serialize)]
 struct ListCitiesResponse {
@@ -88,6 +89,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/outbound/{airport_code}", web::get().to(outbound_schedule))
                     .route("/route/{from}/{to}/{depth}", web::get().to(list_routes))
                     .route("/compute_prices", web::post().to(compute_prices))
+                    .route("/compute_seats", web::post().to(compute_seats))
             )
     })
         .bind(server_addr.clone())
