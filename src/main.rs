@@ -1,12 +1,12 @@
 mod config;
 mod app_state;
 mod handlers;
-mod neighbours;
 mod prices;
 mod seats;
+mod find_flights;
+mod types;
 
 use std::process::exit;
-use std::time::Instant;
 use actix_web::{web, App, HttpServer, Responder, HttpResponse};
 use dotenv::dotenv;
 use serde::Serialize;
@@ -14,7 +14,6 @@ use sqlx::postgres::PgPoolOptions;
 use crate::app_state::AppState;
 use crate::config::Config;
 use crate::handlers::{inbound_schedule, list_airports_within_city, list_all_airports, list_cities, list_routes, outbound_schedule};
-use crate::neighbours::compute_neighbours;
 use crate::prices::compute_prices;
 use crate::seats::compute_seats;
 
@@ -69,16 +68,11 @@ async fn main() -> std::io::Result<()> {
 
     let server_addr = config.server_addr.clone();
 
-    let timer = Instant::now();
-    let airport_neighbours = compute_neighbours(&pool).await;
-    println!("Elapsed: {:?}", timer.elapsed());
-
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(AppState {
                 db_pool: pool.clone(),
-                cfg: config.clone(),
-                airport_neighbours: airport_neighbours.clone()
+                cfg: config.clone()
             }))
             .service(
                 web::scope("/api")
@@ -87,7 +81,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/city_airports/{city}", web::get().to(list_airports_within_city))
                     .route("/inbound/{airport_code}", web::get().to(inbound_schedule))
                     .route("/outbound/{airport_code}", web::get().to(outbound_schedule))
-                    .route("/route/{from}/{to}/{depth}", web::get().to(list_routes))
+                    .route("/route", web::get().to(list_routes))
                     .route("/compute_prices", web::post().to(compute_prices))
                     .route("/compute_seats", web::post().to(compute_seats))
             )

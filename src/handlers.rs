@@ -1,10 +1,10 @@
-use std::collections::{HashMap, HashSet, VecDeque};
-use std::time::Instant;
 use actix_web::{HttpResponse, Responder, web};
-use chrono::NaiveTime;
+use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use crate::app_state::AppState;
+use crate::find_flights::find_flights;
+use crate::types::{AirportCode, BookingClass, LocationType};
 
 pub async fn list_cities(state: web::Data<AppState>) -> impl Responder {
     match sqlx::query!("SELECT DISTINCT city FROM airports")
@@ -44,22 +44,22 @@ pub async fn list_all_airports(state: web::Data<AppState>) -> impl Responder {
         }
     }
 }
-pub async fn list_airports_within_city(path: web::Path<String>, state: web::Data<AppState>) -> impl Responder {
-    match sqlx::query_as!(
+
+async fn get_airports_within_city(city: &str, pool: &PgPool) -> Vec<Airport> {
+    sqlx::query_as!(
         Airport,
         "SELECT airport_name as name, airport_code as code FROM airports WHERE city=$1",
-        path.as_str()
+        city
     )
-        .fetch_all(&state.db_pool)
+        .fetch_all(pool)
         .await
-    {
-        Ok(result) => {
-            HttpResponse::Ok().json(result)
-        }
-        Err(_) => {
-            HttpResponse::InternalServerError().json("")
-        }
-    }
+        .unwrap()
+}
+
+pub async fn list_airports_within_city(path: web::Path<String>, state: web::Data<AppState>) -> impl Responder {
+    HttpResponse::Ok().json(
+        get_airports_within_city(path.as_str(), &state.db_pool).await
+    )
 }
 
 #[derive(Serialize)]
@@ -131,60 +131,60 @@ pub async fn outbound_schedule(path: web::Path<String>, state: web::Data<AppStat
     }
 }
 
-fn dfs(depth_limit: usize, u: String, v: String, visited: &mut HashSet<String>, current_path: &mut VecDeque<String>, paths: &mut Vec<Vec<String>>, airport_neighbours: &HashMap<String, Vec<String>>) {
-    if current_path.len() > depth_limit {
-        return;
-    }
+#[derive(Serialize, Deserialize)]
+pub struct ListRoutesParameters {
+    source_type: LocationType,
+    source: String,
 
-    if visited.contains(u.as_str()) {
-        return;
-    }
+    destination_type: LocationType,
+    destination: String,
 
-    // println!("DFS Iter {} {} {:?} {:?} {}", u, v, visited, current_path, paths.len());
+    max_connections: u8,
 
-    visited.insert(u.clone());
+    connection_time_min: u8,
+    connection_time_max: u8,
 
-    current_path.push_back(u.clone());
-
-    if *u == *v {
-        paths.push(current_path.clone().into_iter().collect());
-        visited.remove(u.as_str());
-        current_path.pop_back();
-        return;
-    }
-
-    let neighbours = airport_neighbours.get(u.as_str()).unwrap();
-    for neighbour in neighbours {
-        dfs(depth_limit, neighbour.clone(), v.clone(), visited, current_path, paths, airport_neighbours);
-    }
-
-    current_path.pop_back();
-    visited.remove(u.as_str());
+    departure_date: NaiveDate,
+    
+    booking_class: BookingClass
 }
 
-fn find_all_paths(depth_limit: usize, from: String, to: String, paths: &mut Vec<Vec<String>>, airport_neighbours: &HashMap<String, Vec<String>>) {
-    let mut visited = HashSet::new();
-    let mut current_path = VecDeque::new();
-
-    dfs(depth_limit, from, to, &mut visited, &mut current_path, paths, airport_neighbours);
+async fn convert_location_to_airport_codes(location_type: LocationType, location: String, pool: &PgPool) -> Vec<AirportCode> {
+    match location_type {
+        LocationType::CITY => {
+            get_airports_within_city(location.as_str(), pool)
+                .await
+                .into_iter()
+                .map(|x| x.code.unwrap())
+                .collect()
+        }
+        LocationType::AIRPORT => {
+            vec![location]
+        }
+    }
 }
 
-pub async fn list_routes(path: web::Path<(String, String, usize)>, state: web::Data<AppState>) -> impl Responder {
-    let (from, to, depth) = path.into_inner();
-    
-    let mut paths = Vec::new();
+pub async fn list_routes(parameters: web::Query<ListRoutesParameters>, state: web::Data<AppState>) -> impl Responder {
+    let source_airports = convert_location_to_airport_codes(
+        parameters.source_type.clone(),
+        parameters.source.clone(),
+        &state.db_pool
+    ).await;
 
-    let timer = Instant::now();
-    find_all_paths(depth, from.clone(), to.clone(), &mut paths, &state.airport_neighbours);
-    println!("Depth {}, path count: {}, elapsed: {:?}", depth, paths.len(), &timer.elapsed());
+    let destination_airports = convert_location_to_airport_codes(
+        parameters.destination_type.clone(),
+        parameters.destination.clone(),
+        &state.db_pool
+    ).await;
     
-    // for i in 1..15 {
-    //     println!("Start");
-    //     let timer = Instant::now();
-    //     find_all_paths(i.clone(), from.clone(), to.clone(), &mut paths, &airport_neighbours);
-    //     println!("Depth {}, path count: {}, elapsed: {:?}", &i, paths.len(), &timer.elapsed());
-    //     paths.clear();
-    // }
+    let flights = find_flights(
+        source_airports,
+        destination_airports,
+        parameters.departure_date,
+        parameters.max_connections as i32,
+        2, 3, BookingClass::ECONOMY,
+        &state.db_pool
+    ).await.unwrap();
     
-    HttpResponse::Ok().json(paths)
+    HttpResponse::Ok().json(flights)
 }
