@@ -9,16 +9,21 @@ pub enum LocationType {
     AIRPORT,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Copy, Clone)]
 pub enum BookingClass {
-    #[serde(rename = "Economy")]
-    ECONOMY,
+    Economy,
+    Comfort,
+    Business,
+}
 
-    #[serde(rename = "Comfort")]
-    COMFORT,
-
-    #[serde(rename = "Business")]
-    BUSINESS,
+impl From<BookingClass> for String {
+    fn from(value: BookingClass) -> Self {
+        match value {
+            BookingClass::Economy => { "Economy".to_string() }
+            BookingClass::Comfort => { "Comfort".to_string() }
+            BookingClass::Business => { "Business".to_string() }
+        }
+    }
 }
 
 pub type AirportCode = String;

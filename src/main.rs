@@ -5,6 +5,7 @@ mod prices;
 mod seats;
 mod find_flights;
 mod types;
+mod booking;
 
 use std::process::exit;
 use actix_web::{web, App, HttpServer, Responder, HttpResponse};
@@ -13,7 +14,7 @@ use serde::Serialize;
 use sqlx::postgres::PgPoolOptions;
 use crate::app_state::AppState;
 use crate::config::Config;
-use crate::handlers::{inbound_schedule, list_airports_within_city, list_all_airports, list_cities, list_routes, outbound_schedule};
+use crate::handlers::{create_booking, inbound_schedule, list_airports_within_city, list_all_airports, list_cities, list_routes, outbound_schedule};
 use crate::prices::compute_prices;
 use crate::seats::compute_seats;
 
@@ -84,6 +85,7 @@ async fn main() -> std::io::Result<()> {
                     .route("/route", web::get().to(list_routes))
                     .route("/compute_prices", web::post().to(compute_prices))
                     .route("/compute_seats", web::post().to(compute_seats))
+                    .route("/create_booking", web::post().to(create_booking))
             )
     })
         .bind(server_addr.clone())

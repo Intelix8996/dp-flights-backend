@@ -3,6 +3,7 @@ use chrono::{NaiveDate, NaiveTime};
 use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use crate::app_state::AppState;
+use crate::booking::create_booking_entries;
 use crate::find_flights::find_flights;
 use crate::types::{AirportCode, BookingClass, LocationType};
 
@@ -182,9 +183,47 @@ pub async fn list_routes(parameters: web::Query<ListRoutesParameters>, state: we
         destination_airports,
         parameters.departure_date,
         parameters.max_connections as i32,
-        2, 3, BookingClass::ECONOMY,
+        parameters.connection_time_min as i32,
+        parameters.connection_time_max as i32,
+        parameters.booking_class,
         &state.db_pool
     ).await.unwrap();
     
     HttpResponse::Ok().json(flights)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CreateBookingParameters {
+    pub passenger_name: String,
+    pub passenger_id: String,
+
+    pub flight_ids: Vec<i32>,
+    pub fare_conditions: BookingClass
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CreateBookingResult {
+    pub booking_id: String,
+    pub ticker_no: String,
+
+    pub total_price: i32,
+}
+
+pub async fn create_booking(parameters: web::Json<CreateBookingParameters>, state: web::Data<AppState>) -> impl Responder {
+
+    let pool = &state.db_pool;
+
+    let mut transaction = pool.begin().await.unwrap();
+    
+    let result = match create_booking_entries(parameters.into_inner(), &mut transaction).await {
+        Ok(r) => {
+            transaction.commit().await.unwrap();
+            r
+        }
+        Err(e) => {
+            return HttpResponse::InternalServerError().body(e.to_string());
+        }
+    };
+
+    HttpResponse::Ok().json(result)
 }

@@ -633,6 +633,7 @@ dependencies = [
  "chrono",
  "dotenv",
  "futures",
+ "rand",
  "serde",
  "sqlx",
 ]

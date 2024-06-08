@@ -1,7 +1,7 @@
 WITH RECURSIVE flights_recur AS (
     SELECT
         ARRAY[f1.departure_airport]::VARCHAR[] AS path,
-            f1.arrival_airport AS end_point,
+        f1.arrival_airport AS end_point,
         f1.scheduled_departure AS departure_time,
         f1.scheduled_arrival AS arrival_time,
         ARRAY[f1.flight_id]::INT[] as flight_id,
