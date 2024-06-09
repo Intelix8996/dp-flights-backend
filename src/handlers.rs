@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use crate::app_state::AppState;
 use crate::booking::create_booking_entries;
+use crate::check_in::check_in_passanger;
 use crate::find_flights::find_flights;
 use crate::types::{AirportCode, BookingClass, LocationType};
 
@@ -226,4 +227,34 @@ pub async fn create_booking(parameters: web::Json<CreateBookingParameters>, stat
     };
 
     HttpResponse::Ok().json(result)
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CheckInParameters {
+    ticket_no: String,
+    flight_id: i32
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct CheckInResult {
+    seat_no: String
+}
+
+pub async fn check_in(parameters: web::Json<CheckInParameters>, state: web::Data<AppState>) -> impl Responder {
+    let place = match check_in_passanger(
+        parameters.ticket_no.clone(),
+        parameters.flight_id,
+        &state.db_pool
+    )
+        .await
+    {
+        Ok(r) => { r }
+        Err(e) => {
+            return HttpResponse::InternalServerError().body(e.to_string());
+        }
+    };
+
+    HttpResponse::Ok().json(CheckInResult {
+        seat_no: place,
+    })
 }

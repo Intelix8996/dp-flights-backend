@@ -12,6 +12,7 @@ WITH RECURSIVE flights_recur AS (
       AND f1.scheduled_departure
         BETWEEN '2017-08-15 04:20:00.000000 +00:00'
         AND '2017-08-21 04:20:00.000000 +00:00'
+      AND free_seats(occupied_seats(fn.flight_id, 'Economy'), aircraft_type(fn.flight_id), 'Economy') > 1
 
     UNION
 
@@ -30,7 +31,7 @@ WITH RECURSIVE flights_recur AS (
             AND fn.scheduled_departure
             BETWEEN flights_recur.arrival_time
             AND flights_recur.arrival_time + INTERVAL '24h'
-        -- AND free_seats(fn.flight_id, 'Economy') IS NOT NULL
+            AND free_seats(occupied_seats(fn.flight_id, 'Economy'), aircraft_type(fn.flight_id), 'Economy') > 1
         )
     WHERE len < 1
 )

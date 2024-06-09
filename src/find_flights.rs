@@ -40,6 +40,7 @@ pub async fn find_flights(
               AND f1.scheduled_departure
                 BETWEEN $3
                 AND $3 + INTERVAL '24h'
+                AND free_seats(occupied_seats(f1.flight_id, $5), aircraft_type(f1.flight_id), $5) > 1
 
             UNION
 
@@ -58,7 +59,7 @@ pub async fn find_flights(
                     AND fn.scheduled_departure
                     BETWEEN (flights_recur.arrival_time + INTERVAL '1h')
                     AND (flights_recur.arrival_time + INTERVAL '24h')
-                -- AND free_seats(fn.flight_id, $10) IS NOT NULL
+                    AND free_seats(occupied_seats(fn.flight_id, $5), aircraft_type(fn.flight_id), $5) > 1
                 )
             WHERE len < $4
         )
@@ -75,9 +76,9 @@ pub async fn find_flights(
         destinations.as_slice(),
         DateTime::<Utc>::from_naive_utc_and_offset(NaiveDateTime::from(departure_date), Utc),
         max_connections,
+        String::from(booking_class)
         // format!("{}h", connection_time_min).to_string(),
         // connection_time_max,
-        // booking_class,
     )
         .fetch_all(pool)
         .await
